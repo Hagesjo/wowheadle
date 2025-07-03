@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WoWheadle Connections</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Georgia', serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #333;
+            background-color: #1a1a1a;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        
+        .header p {
+            font-size: 16px;
+            color: #cccccc;
+        }
+        
+        .game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            width: 100%;
+        }
+        
+        .comments-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .comment-card {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .comment-card:hover {
+            border-color: #666;
+            background-color: #333;
+        }
+        
+        .comment-card.selected {
+            border-color: #e5e7eb;
+            background-color: #f3f4f6;
+            color: #000000;
+        }
+        
+        .comment-card.selected .comment-body,
+        .comment-card.selected .comment-user {
+            color: #000000;
+        }
+        
+        .comment-card.correct {
+            border-color: #10b981;
+            background-color: #065f46;
+        }
+        
+        .comment-card.correct.yellow {
+            border-color: #ffe066;
+            background-color: #ffe066;
+            color: #000000;
+        }
+        
+        .comment-card.correct.yellow .comment-body,
+        .comment-card.correct.yellow .comment-user {
+            color: #000000;
+        }
+        
+        .comment-card.correct.green {
+            border-color: #6ee7b7;
+            background-color: #6ee7b7;
+            color: #000000;
+        }
+        
+        .comment-card.correct.green .comment-body,
+        .comment-card.correct.green .comment-user {
+            color: #000000;
+        }
+        
+        .comment-card.correct.blue {
+            border-color: #60a5fa;
+            background-color: #60a5fa;
+            color: #000000;
+        }
+        
+        .comment-card.correct.blue .comment-body,
+        .comment-card.correct.blue .comment-user {
+            color: #000000;
+        }
+        
+        .comment-card.correct.purple {
+            border-color: #a78bfa;
+            background-color: #a78bfa;
+            color: #000000;
+        }
+        
+        .comment-card.correct.purple .comment-body,
+        .comment-card.correct.purple .comment-user {
+            color: #000000;
+        }
+        
+        .comment-card.incorrect {
+            border-color: #ef4444;
+            background-color: #7f1d1d;
+        }
+        
+        .comment-card.one-away:not(.correct) {
+            border-color: #ea580c;
+            background-color: #c2410c;
+        }
+        
+        .comment-body {
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+        
+        .comment-user {
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+            margin-top: auto;
+        }
+        
+        .groups-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        
+        .group {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 120px;
+        }
+        
+        .group-yellow {
+            border-color: #ffe066;
+        }
+        
+        .group-green {
+            border-color: #6ee7b7;
+        }
+        
+        .group-blue {
+            border-color: #60a5fa;
+        }
+        
+        .group-purple {
+            border-color: #a78bfa;
+        }
+        
+        .group-title {
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #ffffff;
+            font-size: 16px;
+        }
+        
+        .group-comments {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .group-comment {
+            background: #333;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #cccccc;
+        }
+        
+        .group-article {
+            background: #1e3a8a;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .group-article a {
+            color: #ffffff;
+            text-decoration: none;
+        }
+        
+        .group-article a:hover {
+            text-decoration: underline;
+        }
+        
+        .controls {
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .btn.secondary {
+            background: #666;
+        }
+        
+        .btn.secondary:hover {
+            background: #555;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+            min-height: 27px;
+        }
+        
+        .success {
+            color: #10b981;
+        }
+        
+        .error {
+            color: #ef4444;
+        }
+        
+        .info {
+            color: #3b82f6;
+        }
+        
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .progress {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .progress-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #444;
+            border: 2px solid #666;
+        }
+        
+        .progress-dot.completed {
+            background: #10b981;
+            border-color: #10b981;
+        }
+        
+        .progress-dot.current {
+            background: #007bff;
+            border-color: #007bff;
+        }
+        
+        @media (max-width: 768px) {
+            .comments-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .groups-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .game-container {
+                padding: 10px;
+            }
+        }
+        
+        /* Add NYT color dot styles */
+        .nyt-dot {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+            border: 2px solid #fff;
+        }
+        .nyt-dot-yellow { background: #ffe066; border-color: #ffe066; }
+        .nyt-dot-green { background: #6ee7b7; border-color: #6ee7b7; }
+        .nyt-dot-blue { background: #60a5fa; border-color: #60a5fa; }
+        .nyt-dot-purple { background: #a78bfa; border-color: #a78bfa; }
+        
+        .status.one-away {
+            color: #ea580c;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>WoWheadle Connections</h1>
+        <p>Group the comments by their original articles</p>
+    </div>
+    
+    <div class="game-container">
+        <div class="game-info">
+            <div class="progress">
+                <div class="progress-dot" id="progress1"></div>
+                <div class="progress-dot" id="progress2"></div>
+                <div class="progress-dot" id="progress3"></div>
+                <div class="progress-dot" id="progress4"></div>
+            </div>
+        </div>
+        
+        <div class="status" id="status">Loading...</div>
+        
+        <div class="comments-grid" id="commentsGrid">
+            <!-- Comments will be populated here -->
+        </div>
+        
+        <div class="controls">
+            <button class="btn secondary" onclick="startNewGame()">New Game</button>
+            <button class="btn" onclick="submitGroup()" id="submitBtn" disabled>Submit Group</button>
+            <button class="btn secondary" onclick="clearSelection()">Clear Selection</button>
+        </div>
+        
+        <div class="groups-container">
+            <div class="group group-yellow">
+                <div class="group-title">Group 1 <span class="nyt-dot nyt-dot-yellow"></span></div>
+                <div class="group-comments" id="group1"></div>
+            </div>
+            <div class="group group-green">
+                <div class="group-title">Group 2 <span class="nyt-dot nyt-dot-green"></span></div>
+                <div class="group-comments" id="group2"></div>
+            </div>
+            <div class="group group-blue">
+                <div class="group-title">Group 3 <span class="nyt-dot nyt-dot-blue"></span></div>
+                <div class="group-comments" id="group3"></div>
+            </div>
+            <div class="group group-purple">
+                <div class="group-title">Group 4 <span class="nyt-dot nyt-dot-purple"></span></div>
+                <div class="group-comments" id="group4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentGame = null;
+        let selectedComments = [];
+        let currentGroup = 1;
+        let filledGroups = { yellow: false, green: false, blue: false, purple: false };
+
+        async function startNewGame() {
+            try {
+                updateStatus('Loading new game...', 'info');
+                const response = await fetch('/start-game');
+                const data = await response.json();
+                currentGame = data;
+                displayComments(data.comments);
+                clearGroups();
+                clearSelection();
+                updateProgress();
+                filledGroups = { yellow: false, green: false, blue: false, purple: false };
+                updateStatus('Select 4 comments to form a group', 'info');
+                document.getElementById('submitBtn').disabled = true;
+            } catch (error) {
+                updateStatus('Failed to start game', 'error');
+            }
+        }
+
+        function displayComments(comments) {
+            const grid = document.getElementById('commentsGrid');
+            grid.innerHTML = '';
+            
+            comments.forEach((comment, index) => {
+                const card = document.createElement('div');
+                card.className = 'comment-card';
+                card.onclick = () => toggleComment(index);
+                card.innerHTML = `
+                    <div class="comment-body">${escapeHtml(comment.comment.body)}</div>
+                    <div class="comment-user">— ${escapeHtml(comment.comment.user)}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleComment(index) {
+            const card = document.querySelectorAll('.comment-card')[index];
+            const isSelected = card.classList.contains('selected');
+            
+            if (isSelected) {
+                card.classList.remove('selected');
+                selectedComments = selectedComments.filter(i => i !== index);
+            } else if (selectedComments.length < 4) {
+                card.classList.add('selected');
+                selectedComments.push(index);
+            }
+            
+            document.getElementById('submitBtn').disabled = selectedComments.length !== 4;
+        }
+
+        function clearSelection() {
+            selectedComments = [];
+            document.querySelectorAll('.comment-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById('submitBtn').disabled = true;
+        }
+
+        function clearGroups() {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById('group' + i).innerHTML = '';
+            }
+            currentGroup = 1;
+        }
+
+        function updateProgress() {
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById('progress' + i);
+                dot.className = 'progress-dot';
+                if (i < currentGroup) {
+                    dot.classList.add('completed');
+                } else if (i === currentGroup) {
+                    dot.classList.add('current');
+                }
+            }
+        }
+
+        async function submitGroup() {
+            if (selectedComments.length !== 4) return;
+            
+            try {
+                document.getElementById('submitBtn').disabled = true;
+                updateStatus('Checking...', 'info');
+                
+                const response = await fetch('/check-solution', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        game_id: currentGame.game_id,
+                        group: selectedComments
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.correct) {
+                    // Mark cards as correct with their group color
+                    selectedComments.forEach(index => {
+                        const card = document.querySelectorAll('.comment-card')[index];
+                        card.classList.remove('selected');
+                        card.classList.add('correct');
+                        if (result.color) {
+                            card.classList.add(result.color);
+                        }
+                    });
+                    
+                    // Add to the correct group based on color/difficulty
+                    let targetGroup = 1;
+                    if (result.color === 'yellow') targetGroup = 1;
+                    else if (result.color === 'green') targetGroup = 2;
+                    else if (result.color === 'blue') targetGroup = 3;
+                    else if (result.color === 'purple') targetGroup = 4;
+                    
+                    const groupDiv = document.getElementById('group' + targetGroup);
+                    
+                    // Add article info at the top of the group
+                    if (result.article_title) {
+                        const articleDiv = document.createElement('div');
+                        articleDiv.className = 'group-article';
+                        articleDiv.innerHTML = `<a href="${result.article_url}" target="_blank">${result.article_title}</a>`;
+                        groupDiv.appendChild(articleDiv);
+                    }
+                    
+                    selectedComments.forEach(index => {
+                        const comment = currentGame.comments[index];
+                        const commentDiv = document.createElement('div');
+                        commentDiv.className = 'group-comment';
+                        commentDiv.textContent = comment.comment.body.substring(0, 60) + (comment.comment.body.length > 60 ? '...' : '');
+                        groupDiv.appendChild(commentDiv);
+                    });
+                    
+                    // Mark this color group as filled
+                    if (result.color) {
+                        filledGroups[result.color] = true;
+                    }
+                    
+                    // Update currentGroup to the next unfilled group
+                    if (!filledGroups.yellow) currentGroup = 1;
+                    else if (!filledGroups.green) currentGroup = 2;
+                    else if (!filledGroups.blue) currentGroup = 3;
+                    else if (!filledGroups.purple) currentGroup = 4;
+                    else currentGroup = 5; // All groups filled
+                    clearSelection();
+                    updateProgress();
+                    
+                    if (result.finished) {
+                        updateStatus('Congratulations! You completed the game!', 'success');
+                        document.getElementById('submitBtn').disabled = true;
+                    } else {
+                        updateStatus(`Group ${currentGroup - 1} correct! ${result.remaining} comments remaining.`, 'success');
+                        document.getElementById('submitBtn').disabled = true;
+                    }
+                } else {
+                    // Mark cards as incorrect or one-away
+                    selectedComments.forEach(index => {
+                        const card = document.querySelectorAll('.comment-card')[index];
+                        card.classList.remove('selected');
+                        if (result.one_away) {
+                            card.classList.add('one-away');
+                        } else {
+                            card.classList.add('incorrect');
+                        }
+                    });
+                    
+                    if (result.one_away) {
+                        updateStatus('One away...', 'one-away');
+                    } else {
+                        updateStatus('Incorrect group. Try again!', 'error');
+                    }
+                    clearSelection();
+                    
+                    // Remove incorrect/one-away styling after a delay
+                    setTimeout(() => {
+                        document.querySelectorAll('.comment-card.incorrect, .comment-card.one-away').forEach(card => {
+                            card.classList.remove('incorrect', 'one-away');
+                        });
+                    }, 2000);
+                }
+            } catch (error) {
+                updateStatus('Failed to submit group', 'error');
+                document.getElementById('submitBtn').disabled = true;
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+        }
+
+        // Start a new game when page loads
+        window.onload = startNewGame;
+    </script>
+</body>
+</html> 
