@@ -374,10 +374,10 @@
         </div>
         
         <div class="controls">
-            <button class="btn secondary" onclick="debugResetGame()">New Game</button>
+            <button class="btn secondary" onclick="debugResetGame()" id="newGameBtn" style="display: none;">New Game</button>
             <button class="btn" onclick="submitGroup()" id="submitBtn" disabled>Submit Group</button>
             <button class="btn secondary" onclick="clearSelection()">Clear Selection</button>
-            <button class="btn secondary" onclick="showShareDialog()">Share Progress</button>
+            <button class="btn secondary" onclick="showShareDialog()" id="shareBtn" style="display: none;">Share Progress</button>
         </div>
         
         <div class="groups-container">
@@ -775,6 +775,13 @@
                     disableInput();
                     await revealAllAnswers();
                     updateStatus('Game over!', 'error');
+                    document.getElementById('shareBtn').style.display = 'inline-block';
+                }
+
+                // Check if game is finished (all groups completed)
+                const allGroupsCompleted = filledGroups.yellow && filledGroups.green && filledGroups.blue && filledGroups.purple;
+                if (allGroupsCompleted) {
+                    document.getElementById('shareBtn').style.display = 'inline-block';
                 }
             } catch (error) {
                 updateStatus('Failed to load daily game', 'error');
@@ -945,11 +952,13 @@
                     if (result.finished) {
                         updateStatus('Congratulations! You completed the game!', 'success');
                         document.getElementById('submitBtn').disabled = true;
+                        document.getElementById('shareBtn').style.display = 'inline-block';
                         disableInput();
                     } else if (incorrectGuessCount >= maxGuesses) {
                         disableInput();
                         await revealAllAnswers();
                         updateStatus('Game over! You used all your guesses. Answers revealed.', 'error');
+                        document.getElementById('shareBtn').style.display = 'inline-block';
                     } else {
                         updateStatus(`Group  correct!.`, 'success');
                         document.getElementById('submitBtn').disabled = true;
@@ -979,6 +988,7 @@
                         disableInput();
                         await revealAllAnswers();
                         updateStatus('Game over! You used all your guesses. Answers revealed.', 'error');
+                        document.getElementById('shareBtn').style.display = 'inline-block';
                     }
                 }
             } catch (error) {
@@ -1003,8 +1013,19 @@
             startNewGame();
         }
 
+        // Check for debug parameter and show/hide debug button
+        function checkDebugMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('debug') === 'true') {
+                document.getElementById('newGameBtn').style.display = 'inline-block';
+            }
+        }
+
         // Start a new game when page loads
-        window.onload = startNewGame;
+        window.onload = function() {
+            checkDebugMode();
+            startNewGame();
+        };
     </script>
 </body>
 </html> 

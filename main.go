@@ -494,6 +494,7 @@ func main() {
 	http.HandleFunc("/start-game", startGameHandler)
 	http.HandleFunc("/check-solution", checkSolutionHandler)
 	http.HandleFunc("/get-solution", getSolutionHandler)
-	fmt.Println("Listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/health", healthHandler)
+	fmt.Println("Listening on :9010")
+	http.ListenAndServe(":9010", nil)
 }
