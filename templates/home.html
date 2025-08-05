@@ -356,6 +356,10 @@
         <p>Group the comments by their original articles</p>
     </div>
     
+    <div class="countdown" id="countdown" style="text-align: center; margin: 10px 0; font-size: 14px; color: #888;">
+        Next game in: <span id="countdownTimer">--:--:--</span>
+    </div>
+
     <div class="game-container">
         <div class="status" id="status">Loading...</div>
         
@@ -858,6 +862,33 @@
             }
         }
 
+        function updateCountdown() {
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+            tomorrow.setUTCHours(0, 0, 0, 0);
+
+            const timeLeft = tomorrow - now;
+
+            if (timeLeft <= 0) {
+                // Timer has reached zero, show "00:00:00"
+                const countdownTimer = document.getElementById('countdownTimer');
+                if (countdownTimer) {
+                    countdownTimer.textContent = '00:00:00';
+                }
+                return;
+            }
+
+            const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+            const countdownTimer = document.getElementById('countdownTimer');
+            if (countdownTimer) {
+                countdownTimer.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
         async function submitGroup() {
             if (selectedComments.length !== 4) return;
             if (incorrectGuessCount >= maxGuesses) return;
@@ -1025,6 +1056,10 @@
         window.onload = function() {
             checkDebugMode();
             startNewGame();
+
+            // Start countdown timer
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
         };
     </script>
 </body>
