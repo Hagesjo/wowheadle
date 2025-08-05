@@ -490,6 +490,7 @@ func GetDifficultyColor(totalQuotes int) string {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano()) // Go 1.19.
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/start-game", startGameHandler)
 	http.HandleFunc("/check-solution", checkSolutionHandler)
