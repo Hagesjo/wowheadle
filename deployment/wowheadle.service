@@ -1,0 +1,30 @@
+[Unit]
+Description=WoWheadle Connections Game
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=wowheadle
+Group=wowheadle
+WorkingDirectory=/opt/wowheadle
+ExecStart=/opt/wowheadle/wowheadle
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wowheadle
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/wowheadle
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target 
