@@ -110,3 +110,8 @@ Completed comment cards retain their assigned colors with matching backgrounds a
 - **Architecture**: Simple HTTP server with template rendering
 - **Color Scheme**: NYT Connections colors (#ffe066 yellow, #6ee7b7 green, #60a5fa blue, #a78bfa purple)
 - **Player Isolation**: Each browser session gets a unique player ID for independent gameplay
+
+## Future work
+
+- Database interaction for game storages, maybe. I want it to be easy to set up on new servers with no db required for less complexity.
+- Don't reuse articles from previous games

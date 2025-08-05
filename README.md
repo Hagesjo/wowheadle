@@ -1,6 +1,6 @@
 # WoWheadle Connections
 
-A World of Warcraft-themed Connections game inspired by NYT Connections, where players group comments by their original articles.
+A World of Warcraft-themed Connections game inspired by NYT Connections, where players group comments by their original articles. Entirely vibe coded for funsies.
 
 ## Setup
 
