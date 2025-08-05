@@ -17,9 +17,13 @@ This game is inspired by the NYT "Connections" game, but uses World of Warcraft 
 - **Game Logic**:
   - Progressive gameplay (submit one group at a time)
   - "One away" detection (3 out of 4 correct)
-  - Tracks used comments and game state
+  - **Player-specific game state** (no shared state between sessions)
   - Debug output showing correct solutions
   - **Color-coded difficulty system** based on quote count in comments
+- **API Endpoints**:
+  - `GET /start-game` - Creates a new game with 4 articles and 16 comments
+  - `POST /check-solution` - Validates a group submission and returns feedback
+  - `GET /get-solution` - Returns the complete solution for game over scenarios
 
 ### Frontend (HTML/CSS/JavaScript)
 
@@ -29,7 +33,7 @@ This game is inspired by the NYT "Connections" game, but uses World of Warcraft 
   - 4x4 grid of comment cards
   - Click to select/deselect comments (max 4)
   - Visual feedback for correct/incorrect selections
-  - Progress indicator (4 dots showing current group)
+  - **Mistakes remaining indicator** (4 dots showing remaining guesses)
   - **Color-coded difficulty system** with NYT-style color dots
 - **Game Features**:
   - Real-time status messages
@@ -38,12 +42,16 @@ This game is inspired by the NYT "Connections" game, but uses World of Warcraft 
   - **Proper group ordering** by difficulty (not submission order)
   - **Clickable comment expansion** in modal overlay
   - **Selection highlighting** with bright gray background and black text
+  - **Persistent game state** across browser sessions
+  - **Shareable progress** in NYT Connections format
+  - **Game over with complete solution reveal**
 
 ### API Endpoints
 
 - `GET /` - Serves the main game interface
 - `GET /start-game` - Creates a new game with 4 articles and 16 comments
 - `POST /check-solution` - Validates a group submission and returns feedback
+- `GET /get-solution` - Returns the complete solution for game over scenarios
 
 ## Game Flow
 
@@ -52,7 +60,9 @@ This game is inspired by the NYT "Connections" game, but uses World of Warcraft 
 3. **Group Submission**: Submit the group for validation
 4. **Feedback**: Receive immediate feedback (correct, incorrect, or "one away")
 5. **Progression**: Correct groups are moved to the appropriate group containers (ordered by difficulty)
-6. **Completion**: Game ends when all 16 comments are correctly grouped
+6. **Mistakes Tracking**: Incorrect guesses reduce the mistakes remaining counter
+7. **Game Over**: When 4 mistakes are made, all answers are revealed
+8. **Completion**: Game ends when all 16 comments are correctly grouped
 
 ## Color-Coded Difficulty System
 
@@ -82,23 +92,21 @@ Completed comment cards retain their assigned colors with matching backgrounds a
 - ✅ **Selection highlighting** with bright gray background and black text
 - ✅ **Control buttons positioned above group summaries**
 - ✅ **Completed cards with matching color backgrounds and black text**
+- ✅ **Player-specific game state** (no shared state between sessions)
+- ✅ **Mistakes remaining indicator** (4 dots showing remaining guesses)
+- ✅ **Persistent game state** across browser sessions using localStorage
+- ✅ **Game over with complete solution reveal** when 4 mistakes are made
+- ✅ **Shareable progress** in NYT Connections format with emoji squares
+- ✅ **Copy to clipboard functionality** for sharing progress
 
 ## Technical Details
 
 - **Language**: Go (backend) + HTML/CSS/JavaScript (frontend)
 - **Data Source**: WoWhead RSS feed
-- **Storage**: In-memory game state (no persistence)
+- **Storage**:
+  - Server-side: In-memory game state (shared daily games, player-specific progress)
+  - Client-side: localStorage for persistent game state and guess history
 - **Styling**: Custom CSS matching NYT Connections aesthetic
 - **Architecture**: Simple HTTP server with template rendering
 - **Color Scheme**: NYT Connections colors (#ffe066 yellow, #6ee7b7 green, #60a5fa blue, #a78bfa purple)
-
-## Future Enhancements
-
-- Add hints or allow the player to reveal article titles
-- Track player stats or streaks
-- Add a timer or scoring system
-- Persistent game state storage
-- Multiple difficulty levels
-- Social sharing features
-- Sound effects for correct/incorrect submissions
-- Keyboard shortcuts for selection
+- **Player Isolation**: Each browser session gets a unique player ID for independent gameplay

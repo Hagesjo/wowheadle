@@ -294,24 +294,26 @@
             justify-content: center;
             gap: 8px;
             margin-bottom: 20px;
+            align-items: center;
         }
         
         .progress-dot {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: #444;
-            border: 2px solid #666;
-        }
-        
-        .progress-dot.completed {
             background: #10b981;
-            border-color: #10b981;
+            border: 2px solid #10b981;
         }
         
-        .progress-dot.current {
-            background: #007bff;
-            border-color: #007bff;
+        .progress-dot.used {
+            background: #444;
+            border-color: #666;
+        }
+        
+        .mistakes-text {
+            margin-left: 12px;
+            color: #cccccc;
+            font-size: 14px;
         }
         
         @media (max-width: 768px) {
@@ -355,25 +357,27 @@
     </div>
     
     <div class="game-container">
+        <div class="status" id="status">Loading...</div>
+        
+        <div class="comments-grid" id="commentsGrid">
+            <!-- Comments will be populated here -->
+        </div>
+
         <div class="game-info">
             <div class="progress">
                 <div class="progress-dot" id="progress1"></div>
                 <div class="progress-dot" id="progress2"></div>
                 <div class="progress-dot" id="progress3"></div>
                 <div class="progress-dot" id="progress4"></div>
+                <span class="mistakes-text" id="mistakesText">Mistakes remaining</span>
             </div>
         </div>
         
-        <div class="status" id="status">Loading...</div>
-        
-        <div class="comments-grid" id="commentsGrid">
-            <!-- Comments will be populated here -->
-        </div>
-        
         <div class="controls">
-            <button class="btn secondary" onclick="startNewGame()">New Game</button>
+            <button class="btn secondary" onclick="debugResetGame()">New Game</button>
             <button class="btn" onclick="submitGroup()" id="submitBtn" disabled>Submit Group</button>
             <button class="btn secondary" onclick="clearSelection()">Clear Selection</button>
+            <button class="btn secondary" onclick="showShareDialog()">Share Progress</button>
         </div>
         
         <div class="groups-container">
@@ -401,22 +405,379 @@
         let selectedComments = [];
         let currentGroup = 1;
         let filledGroups = { yellow: false, green: false, blue: false, purple: false };
+        let incorrectGuessCount = 0;
+        let maxGuesses = 4;
+        let todayKey = new Date().toISOString().slice(0, 10); // UTC YYYY-MM-DD
+        let playerID = null;
+        let guessHistory = []; // Track each guess attempt
+
+        function getGuessKey() {
+            return 'wowheadle_incorrect_guesses_' + todayKey;
+        }
+
+        function getGroupsKey() {
+            return 'wowheadle_completed_groups_' + todayKey;
+        }
+
+        function getHistoryKey() {
+            return 'wowheadle_guess_history_' + todayKey;
+        }
+
+        function getGameKey() {
+            return 'wowheadle_game_' + todayKey;
+        }
+
+        function loadGuessCount() {
+            incorrectGuessCount = parseInt(localStorage.getItem(getGuessKey()) || '0', 10);
+        }
+
+        function saveGuessCount() {
+            localStorage.setItem(getGuessKey(), incorrectGuessCount);
+        }
+
+        function saveCompletedGroups() {
+            localStorage.setItem(getGroupsKey(), JSON.stringify(filledGroups));
+        }
+
+        function loadCompletedGroups() {
+            const saved = localStorage.getItem(getGroupsKey());
+            if (saved) {
+                filledGroups = JSON.parse(saved);
+            }
+        }
+
+        function loadGuessHistory() {
+            const saved = localStorage.getItem(getHistoryKey());
+            if (saved) {
+                guessHistory = JSON.parse(saved);
+            }
+        }
+
+        function saveGuessHistory() {
+            localStorage.setItem(getHistoryKey(), JSON.stringify(guessHistory));
+        }
+
+        function generateShareableProgress() {
+            if (guessHistory.length === 0) return '';
+            
+            let result = `WoWheadle Connections\nPuzzle ${todayKey}\n`;
+            
+            guessHistory.forEach(guess => {
+                const colors = guess.colors.map(color => {
+                    switch(color) {
+                        case 'yellow': return '🟨';
+                        case 'green': return '🟩';
+                        case 'blue': return '🟦';
+                        case 'purple': return '🟪';
+                        default: return '⬜';
+                    }
+                });
+                result += colors.join('') + '\n';
+            });
+            
+            return result;
+        }
+
+        function showShareDialog() {
+            const shareText = generateShareableProgress();
+            if (!shareText) {
+                alert('No progress to share yet!');
+                return;
+            }
+            
+            // Create a modal dialog
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: #2a2a2a;
+                border: 2px solid #444;
+                border-radius: 8px;
+                padding: 20px;
+                max-width: 500px;
+                width: 90%;
+                color: white;
+            `;
+            
+            content.innerHTML = `
+                <h3 style="margin-bottom: 15px; text-align: center;">Share Progress</h3>
+                <pre style="background: #1a1a1a; padding: 15px; border-radius: 4px; white-space: pre-wrap; font-family: monospace; margin-bottom: 15px;">${shareText}</pre>
+                <div style="text-align: center;">
+                    <button id="copyBtn" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Copy</button>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: #666; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Close</button>
+                </div>
+            `;
+            
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Add event listener for copy button
+            const copyBtn = modal.querySelector('#copyBtn');
+            copyBtn.addEventListener('click', () => {
+                copyToClipboard(shareText, copyBtn);
+            });
+        }
+
+        function copyToClipboard(text, buttonElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                showCopyFeedback(buttonElement, 'Copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showCopyFeedback(buttonElement, 'Copied to clipboard!');
+            });
+        }
+
+        function showCopyFeedback(buttonElement, message) {
+            // Remove any existing feedback
+            const existingFeedback = buttonElement.parentElement.querySelector('.copy-feedback');
+            if (existingFeedback) {
+                existingFeedback.remove();
+            }
+            
+            // Create feedback element
+            const feedback = document.createElement('div');
+            feedback.className = 'copy-feedback';
+            feedback.style.cssText = `
+                color: #10b981;
+                font-size: 12px;
+                margin-top: 5px;
+                text-align: center;
+            `;
+            feedback.textContent = message;
+            
+            // Insert after the button
+            buttonElement.parentElement.appendChild(feedback);
+            
+            // Remove feedback after 3 seconds
+            setTimeout(() => {
+                if (feedback.parentElement) {
+                    feedback.remove();
+                }
+            }, 3000);
+        }
+
+        async function restoreCompletedGroups() {
+            if (!currentGame || !currentGame.game_id) return;
+            
+            try {
+                const response = await fetch(`/get-solution?game_id=${currentGame.game_id}`);
+                const solution = await response.json();
+                
+                // Wait for articles to be loaded
+                if (!currentGame.articles || currentGame.articles.length === 0) {
+                    console.log('Articles not loaded yet, retrying in 100ms...');
+                    setTimeout(() => restoreCompletedGroups(), 100);
+                    return;
+                }
+                
+                // Group comments by their article index
+                const groupedComments = {};
+                currentGame.comments.forEach((comment, idx) => {
+                    const articleIdx = solution.solution[idx];
+                    if (!groupedComments[articleIdx]) {
+                        groupedComments[articleIdx] = [];
+                    }
+                    groupedComments[articleIdx].push({ comment, idx });
+                });
+                
+                // Restore completed groups
+                Object.keys(groupedComments).forEach(articleIdx => {
+                    const groupIndex = parseInt(articleIdx) + 1;
+                    const color = solution.colors[articleIdx];
+                    const colorName = ['yellow', 'green', 'blue', 'purple'][articleIdx];
+                    
+                    if (filledGroups[colorName]) {
+                        const groupDiv = document.getElementById('group' + groupIndex);
+                        
+                        // Add article title with better error handling
+                        if (currentGame.articles && currentGame.articles[articleIdx]) {
+                            const article = currentGame.articles[articleIdx];
+                            console.log('Article data for index', articleIdx, ':', article);
+                            
+                            // Try different possible property names
+                            const title = article.title || article.Title;
+                            const link = article.link || article.Link;
+                            
+                            if (title && link) {
+                                const articleDiv = document.createElement('div');
+                                articleDiv.className = 'group-article';
+                                articleDiv.innerHTML = `<a href="${link}" target="_blank">${title}</a>`;
+                                groupDiv.appendChild(articleDiv);
+                            } else {
+                                console.warn('Article data incomplete for index:', articleIdx, 'Title:', title, 'Link:', link, 'Full article:', article);
+                            }
+                        } else {
+                            console.warn('Article not found for index:', articleIdx, 'Available articles:', currentGame.articles);
+                        }
+                        
+                        // Add comments
+                        groupedComments[articleIdx].forEach(({ comment }) => {
+                            const commentDiv = document.createElement('div');
+                            commentDiv.className = 'group-comment';
+                            commentDiv.textContent = comment.comment.body.substring(0, 60) + (comment.comment.body.length > 60 ? '...' : '');
+                            groupDiv.appendChild(commentDiv);
+                        });
+                        
+                        // Mark comment cards as correct
+                        groupedComments[articleIdx].forEach(({ idx }) => {
+                            const card = document.querySelectorAll('.comment-card')[idx];
+                            card.classList.remove('selected', 'incorrect', 'one-away', 'yellow', 'green', 'blue', 'purple');
+                            card.classList.add('correct', colorName);
+                        });
+                    }
+                });
+                
+                // Update current group
+                if (!filledGroups.yellow) currentGroup = 1;
+                else if (!filledGroups.green) currentGroup = 2;
+                else if (!filledGroups.blue) currentGroup = 3;
+                else if (!filledGroups.purple) currentGroup = 4;
+                else currentGroup = 5;
+                
+                updateProgress();
+            } catch (error) {
+                console.error('Failed to restore completed groups:', error);
+            }
+        }
+
+        function disableInput() {
+            document.getElementById('submitBtn').disabled = true;
+            document.querySelectorAll('.comment-card').forEach(card => {
+                card.onclick = null;
+                card.style.cursor = 'default';
+            });
+        }
+
+        async function revealAllAnswers() {
+            // Mark all cards with their correct color
+            if (!currentGame || !currentGame.game_id) return;
+            
+            try {
+                const response = await fetch(`/get-solution?game_id=${currentGame.game_id}`);
+                const solution = await response.json();
+                
+                // Clear all groups first
+                clearGroups();
+                
+                // Group comments by their article index
+                const groupedComments = {};
+                currentGame.comments.forEach((comment, idx) => {
+                    const articleIdx = solution.solution[idx];
+                    if (!groupedComments[articleIdx]) {
+                        groupedComments[articleIdx] = [];
+                    }
+                    groupedComments[articleIdx].push({ comment, idx });
+                });
+                
+                // Populate groups with correct articles and comments
+                Object.keys(groupedComments).forEach(articleIdx => {
+                    const groupIndex = parseInt(articleIdx) + 1;
+                    const color = solution.colors[articleIdx];
+                    const groupDiv = document.getElementById('group' + groupIndex);
+                    
+                    // Add article title
+                    if (currentGame.articles && currentGame.articles[articleIdx]) {
+                        const article = currentGame.articles[articleIdx];
+                        const title = article.title || article.Title;
+                        const link = article.link || article.Link;
+                        
+                        if (title && link) {
+                            const articleDiv = document.createElement('div');
+                            articleDiv.className = 'group-article';
+                            articleDiv.innerHTML = `<a href="${link}" target="_blank">${title}</a>`;
+                            groupDiv.appendChild(articleDiv);
+                        }
+                    }
+                    
+                    // Add comments
+                    groupedComments[articleIdx].forEach(({ comment }) => {
+                        const commentDiv = document.createElement('div');
+                        commentDiv.className = 'group-comment';
+                        commentDiv.textContent = comment.comment.body.substring(0, 60) + (comment.comment.body.length > 60 ? '...' : '');
+                        groupDiv.appendChild(commentDiv);
+                    });
+                });
+                
+                // Mark all cards with their correct color
+                currentGame.comments.forEach((c, idx) => {
+                    const card = document.querySelectorAll('.comment-card')[idx];
+                    card.classList.remove('selected', 'incorrect', 'one-away', 'yellow', 'green', 'blue', 'purple');
+                    card.classList.add('correct');
+                    
+                    // Get the correct article index and color from the solution
+                    const articleIdx = solution.solution[idx];
+                    const color = solution.colors[articleIdx];
+                    card.classList.add(color);
+                });
+            } catch (error) {
+                console.error('Failed to get solution:', error);
+                // Fallback to old behavior if the endpoint fails
+                let colorMap = {0:'yellow',1:'green',2:'blue',3:'purple'};
+                currentGame.comments.forEach((c, idx) => {
+                    const card = document.querySelectorAll('.comment-card')[idx];
+                    card.classList.remove('selected', 'incorrect', 'one-away', 'yellow', 'green', 'blue', 'purple');
+                    card.classList.add('correct');
+                    let color = colorMap[idx%4];
+                    card.classList.add(color);
+                });
+            }
+        }
+
+
 
         async function startNewGame() {
+            // Always load the daily game
             try {
-                updateStatus('Loading new game...', 'info');
+                updateStatus('Loading daily game...', 'info');
                 const response = await fetch('/start-game');
                 const data = await response.json();
                 currentGame = data;
+                playerID = data.player_id;
+                console.log('Game loaded with articles:', data.articles);
                 displayComments(data.comments);
                 clearGroups();
                 clearSelection();
                 updateProgress();
-                filledGroups = { yellow: false, green: false, blue: false, purple: false };
-                updateStatus('Select 4 comments to form a group', 'info');
+                loadCompletedGroups();
+                loadGuessCount();
+                loadGuessHistory();
+                updateProgress();
+                
+                // Ensure articles are loaded before restoring groups
+                if (data.articles && data.articles.length > 0) {
+                    await restoreCompletedGroups();
+                } else {
+                    console.warn('No articles loaded, skipping group restoration');
+                }
+                
+                updateStatus('Select 4 wowhead comments belonging to the same article', 'info');
                 document.getElementById('submitBtn').disabled = true;
+                if (incorrectGuessCount >= maxGuesses) {
+                    disableInput();
+                    await revealAllAnswers();
+                    updateStatus('Game over!', 'error');
+                }
             } catch (error) {
-                updateStatus('Failed to start game', 'error');
+                updateStatus('Failed to load daily game', 'error');
             }
         }
 
@@ -473,24 +834,29 @@
         }
 
         function updateProgress() {
+            const remainingGuesses = Math.max(0, maxGuesses - incorrectGuessCount);
             for (let i = 1; i <= 4; i++) {
                 const dot = document.getElementById('progress' + i);
                 dot.className = 'progress-dot';
-                if (i < currentGroup) {
-                    dot.classList.add('completed');
-                } else if (i === currentGroup) {
-                    dot.classList.add('current');
+                if (i > remainingGuesses) {
+                    dot.classList.add('used');
                 }
+            }
+            
+            const mistakesText = document.getElementById('mistakesText');
+            if (remainingGuesses === 1) {
+                mistakesText.textContent = '1 mistake remaining';
+            } else {
+                mistakesText.textContent = `${remainingGuesses} mistakes remaining`;
             }
         }
 
         async function submitGroup() {
             if (selectedComments.length !== 4) return;
-            
+            if (incorrectGuessCount >= maxGuesses) return;
             try {
                 document.getElementById('submitBtn').disabled = true;
                 updateStatus('Checking...', 'info');
-                
                 const response = await fetch('/check-solution', {
                     method: 'POST',
                     headers: {
@@ -498,14 +864,46 @@
                     },
                     body: JSON.stringify({
                         game_id: currentGame.game_id,
+                        player_id: playerID,
                         group: selectedComments
                     })
                 });
-                
                 const result = await response.json();
                 
+                // Track this guess attempt
+                let guessColors = [];
+                
                 if (result.correct) {
-                    // Mark cards as correct with their group color
+                    // For correct guesses, all 4 comments have the same color
+                    guessColors = [result.color, result.color, result.color, result.color];
+                } else {
+                    // For incorrect guesses, we need to get the actual colors from the solution
+                    try {
+                        const solutionResponse = await fetch(`/get-solution?game_id=${currentGame.game_id}`);
+                        const solution = await solutionResponse.json();
+                        guessColors = selectedComments.map(idx => {
+                            const articleIdx = solution.solution[idx];
+                            return solution.colors[articleIdx];
+                        });
+                    } catch (error) {
+                        console.error('Failed to get solution for tracking:', error);
+                        guessColors = ['unknown', 'unknown', 'unknown', 'unknown'];
+                    }
+                }
+                
+                guessHistory.push({
+                    colors: guessColors,
+                    correct: result.correct,
+                    timestamp: Date.now()
+                });
+                saveGuessHistory();
+                
+                if (!result.correct) {
+                    incorrectGuessCount++;
+                    saveGuessCount();
+                }
+                updateProgress();
+                if (result.correct) {
                     selectedComments.forEach(index => {
                         const card = document.querySelectorAll('.comment-card')[index];
                         card.classList.remove('selected');
@@ -514,24 +912,18 @@
                             card.classList.add(result.color);
                         }
                     });
-                    
-                    // Add to the correct group based on color/difficulty
                     let targetGroup = 1;
                     if (result.color === 'yellow') targetGroup = 1;
                     else if (result.color === 'green') targetGroup = 2;
                     else if (result.color === 'blue') targetGroup = 3;
                     else if (result.color === 'purple') targetGroup = 4;
-                    
                     const groupDiv = document.getElementById('group' + targetGroup);
-                    
-                    // Add article info at the top of the group
                     if (result.article_title) {
                         const articleDiv = document.createElement('div');
                         articleDiv.className = 'group-article';
                         articleDiv.innerHTML = `<a href="${result.article_url}" target="_blank">${result.article_title}</a>`;
                         groupDiv.appendChild(articleDiv);
                     }
-                    
                     selectedComments.forEach(index => {
                         const comment = currentGame.comments[index];
                         const commentDiv = document.createElement('div');
@@ -539,30 +931,30 @@
                         commentDiv.textContent = comment.comment.body.substring(0, 60) + (comment.comment.body.length > 60 ? '...' : '');
                         groupDiv.appendChild(commentDiv);
                     });
-                    
-                    // Mark this color group as filled
                     if (result.color) {
                         filledGroups[result.color] = true;
+                        saveCompletedGroups();
                     }
-                    
-                    // Update currentGroup to the next unfilled group
                     if (!filledGroups.yellow) currentGroup = 1;
                     else if (!filledGroups.green) currentGroup = 2;
                     else if (!filledGroups.blue) currentGroup = 3;
                     else if (!filledGroups.purple) currentGroup = 4;
-                    else currentGroup = 5; // All groups filled
+                    else currentGroup = 5;
                     clearSelection();
                     updateProgress();
-                    
                     if (result.finished) {
                         updateStatus('Congratulations! You completed the game!', 'success');
                         document.getElementById('submitBtn').disabled = true;
+                        disableInput();
+                    } else if (incorrectGuessCount >= maxGuesses) {
+                        disableInput();
+                        await revealAllAnswers();
+                        updateStatus('Game over! You used all your guesses. Answers revealed.', 'error');
                     } else {
-                        updateStatus(`Group ${currentGroup - 1} correct! ${result.remaining} comments remaining.`, 'success');
+                        updateStatus(`Group  correct!.`, 'success');
                         document.getElementById('submitBtn').disabled = true;
                     }
                 } else {
-                    // Mark cards as incorrect or one-away
                     selectedComments.forEach(index => {
                         const card = document.querySelectorAll('.comment-card')[index];
                         card.classList.remove('selected');
@@ -572,20 +964,22 @@
                             card.classList.add('incorrect');
                         }
                     });
-                    
                     if (result.one_away) {
                         updateStatus('One away...', 'one-away');
                     } else {
                         updateStatus('Incorrect group. Try again!', 'error');
                     }
                     clearSelection();
-                    
-                    // Remove incorrect/one-away styling after a delay
                     setTimeout(() => {
                         document.querySelectorAll('.comment-card.incorrect, .comment-card.one-away').forEach(card => {
                             card.classList.remove('incorrect', 'one-away');
                         });
                     }, 2000);
+                    if (incorrectGuessCount >= maxGuesses) {
+                        disableInput();
+                        await revealAllAnswers();
+                        updateStatus('Game over! You used all your guesses. Answers revealed.', 'error');
+                    }
                 }
             } catch (error) {
                 updateStatus('Failed to submit group', 'error');
@@ -597,6 +991,16 @@
             const statusDiv = document.getElementById('status');
             statusDiv.textContent = message;
             statusDiv.className = 'status ' + type;
+        }
+
+        function debugResetGame() {
+            localStorage.removeItem(getGuessKey());
+            localStorage.removeItem(getGroupsKey());
+            localStorage.removeItem(getHistoryKey());
+            incorrectGuessCount = 0;
+            filledGroups = { yellow: false, green: false, blue: false, purple: false };
+            guessHistory = [];
+            startNewGame();
         }
 
         // Start a new game when page loads

@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // RSS is the root of the RSS feed
@@ -52,21 +53,27 @@ type GameComment struct {
 // GameState holds the answer and used indices for a game
 type GameState struct {
 	Answer   []int         // article indices for each comment
-	Used     map[int]bool  // which comment indices have been grouped
 	Articles []Item        // articles for this game
 	Comments []GameComment // original comments with quote counts
 	Colors   []string      // color for each article
 }
 
+type PlayerGameState struct {
+	Used map[int]bool // which comment indices have been grouped by this player
+}
+
 var (
-	gameStore   = make(map[string]*GameState) // gameID -> GameState
-	gameStoreMu sync.Mutex
+	gameStore     = make(map[string]*GameState)       // gameID -> GameState (shared)
+	playerStore   = make(map[string]*PlayerGameState) // playerID -> PlayerGameState (per player)
+	gameStoreMu   sync.Mutex
+	playerStoreMu sync.Mutex
 )
 
 // GameStartResponse is the response for /start-game
 // ArticleIdx is omitted from comments for the client
 type GameStartResponse struct {
 	GameID   string         `json:"game_id"`
+	PlayerID string         `json:"player_id"`
 	Articles []Item         `json:"articles"`
 	Comments []GameCommentC `json:"comments"`
 }
@@ -190,7 +197,38 @@ func generateGameID() string {
 	return hex.EncodeToString(b)
 }
 
+func generatePlayerID() string {
+	b := make([]byte, 16)
+	cryptorand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func startGameHandler(w http.ResponseWriter, r *http.Request) {
+	// Use UTC date as the daily game key
+	today := time.Now().UTC().Format("2006-01-02")
+
+	// Generate a unique player ID for this session
+	playerID := generatePlayerID()
+
+	gameStoreMu.Lock()
+	gs, ok := gameStore[today]
+	gameStoreMu.Unlock()
+	if ok {
+		// Game for today exists, return it
+		commentsC := make([]GameCommentC, len(gs.Comments))
+		for i, gc := range gs.Comments {
+			commentsC[i] = GameCommentC{Comment: gc.Comment, Index: i}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(GameStartResponse{
+			GameID:   today,
+			PlayerID: playerID,
+			Articles: gs.Articles,
+			Comments: commentsC,
+		})
+		return
+	}
+	// No game for today, generate one
 	resp, err := http.Get("https://www.wowhead.com/news/rss/all")
 	if err != nil {
 		http.Error(w, "Failed to fetch RSS", 500)
@@ -212,7 +250,6 @@ func startGameHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to prepare game: "+err.Error(), 500)
 		return
 	}
-	gameID := generateGameID()
 	answer := make([]int, len(gameComments))
 	commentsC := make([]GameCommentC, len(gameComments))
 	for i, gc := range gameComments {
@@ -227,7 +264,6 @@ func startGameHandler(w http.ResponseWriter, r *http.Request) {
 			articleQuoteCounts[i] += CountQuoteTags(gameComments[idx].Comment.Body)
 		}
 	}
-	// Sort indices by quote count
 	indices := []int{0, 1, 2, 3}
 	sort.Slice(indices, func(i, j int) bool {
 		return articleQuoteCounts[indices[i]] < articleQuoteCounts[indices[j]]
@@ -238,11 +274,10 @@ func startGameHandler(w http.ResponseWriter, r *http.Request) {
 		colors[idx] = nytColors[rank]
 	}
 	gameStoreMu.Lock()
-	gameStore[gameID] = &GameState{Answer: answer, Used: make(map[int]bool), Articles: articles, Comments: gameComments, Colors: colors}
+	gameStore[today] = &GameState{Answer: answer, Articles: articles, Comments: gameComments, Colors: colors}
 	gameStoreMu.Unlock()
-
-	// Debug: Print the correct solution when game is initiated
-	fmt.Printf("Debug - New game %s:\n", gameID)
+	fmt.Printf("Debug - New daily game %s\n", today)
+	// Print the 4x4 group/answer mapping
 	for i := 0; i < 4; i++ {
 		fmt.Printf("  Group %d: ", i+1)
 		for j := 0; j < 4; j++ {
@@ -253,18 +288,18 @@ func startGameHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("(Article %d)\n", i)
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(GameStartResponse{
-		GameID:   gameID,
+		GameID:   today,
 		Articles: articles,
 		Comments: commentsC,
 	})
 }
 
 type CheckSolutionRequest struct {
-	GameID string `json:"game_id"`
-	Group  []int  `json:"group"` // 4 comment indices
+	GameID   string `json:"game_id"`
+	PlayerID string `json:"player_id"`
+	Group    []int  `json:"group"` // 4 comment indices
 }
 
 type CheckSolutionResponse struct {
@@ -275,6 +310,11 @@ type CheckSolutionResponse struct {
 	ArticleTitle string `json:"article_title,omitempty"`
 	ArticleURL   string `json:"article_url,omitempty"`
 	Color        string `json:"color,omitempty"`
+}
+
+type GetSolutionResponse struct {
+	Solution []int    `json:"solution"` // article index for each comment index
+	Colors   []string `json:"colors"`   // color for each article
 }
 
 func checkSolutionHandler(w http.ResponseWriter, r *http.Request) {
@@ -290,13 +330,23 @@ func checkSolutionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Game not found", 404)
 		return
 	}
+
+	// Get or create player-specific state
+	playerStoreMu.Lock()
+	playerState, exists := playerStore[req.PlayerID]
+	if !exists {
+		playerState = &PlayerGameState{Used: make(map[int]bool)}
+		playerStore[req.PlayerID] = playerState
+	}
+	playerStoreMu.Unlock()
+
 	if len(req.Group) != 4 {
 		http.Error(w, "Group must have 4 indices", 400)
 		return
 	}
 	// Check if any index is already used or out of range
 	for _, idx := range req.Group {
-		if idx < 0 || idx >= len(gs.Answer) || gs.Used[idx] {
+		if idx < 0 || idx >= len(gs.Answer) || playerState.Used[idx] {
 			http.Error(w, "Invalid or already used comment index", 400)
 			return
 		}
@@ -331,16 +381,16 @@ func checkSolutionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if correct {
-		// Mark as used
-		gameStoreMu.Lock()
+		// Mark as used for this player
+		playerStoreMu.Lock()
 		for _, idx := range req.Group {
-			gs.Used[idx] = true
+			playerState.Used[idx] = true
 		}
-		gameStoreMu.Unlock()
+		playerStoreMu.Unlock()
 	}
 	remaining := 0
 	for i := range gs.Answer {
-		if !gs.Used[i] {
+		if !playerState.Used[i] {
 			remaining++
 		}
 	}
@@ -363,6 +413,28 @@ func checkSolutionHandler(w http.ResponseWriter, r *http.Request) {
 		ArticleTitle: articleTitle,
 		ArticleURL:   articleURL,
 		Color:        color,
+	})
+}
+
+func getSolutionHandler(w http.ResponseWriter, r *http.Request) {
+	gameID := r.URL.Query().Get("game_id")
+	if gameID == "" {
+		http.Error(w, "Game ID required", 400)
+		return
+	}
+
+	gameStoreMu.Lock()
+	gs, ok := gameStore[gameID]
+	gameStoreMu.Unlock()
+	if !ok {
+		http.Error(w, "Game not found", 404)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(GetSolutionResponse{
+		Solution: gs.Answer,
+		Colors:   gs.Colors,
 	})
 }
 
@@ -421,6 +493,7 @@ func main() {
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/start-game", startGameHandler)
 	http.HandleFunc("/check-solution", checkSolutionHandler)
+	http.HandleFunc("/get-solution", getSolutionHandler)
 	fmt.Println("Listening on :8080")
 	http.ListenAndServe(":8080", nil)
 }
